@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
 # Install or update the Mapper hub on a Linux server FROM A GIT CLONE of this repo.
 #
-#   git clone https://github.com/danielmkongo/mapper-hub.git /opt/mapper-hub
-#   sudo bash /opt/mapper-hub/deploy/server-install.sh          # port 7000
-#   sudo bash /opt/mapper-hub/deploy/server-install.sh 8000     # or another port
+#   git clone https://github.com/danielmkongo/mapper-hub.git     # anywhere, e.g. /root/...
+#   cd mapper-hub
+#   sudo bash deploy/server-install.sh          # port 7000
+#   sudo bash deploy/server-install.sh 8000     # or another port
 #
-# Update later:
-#   cd /opt/mapper-hub && git pull && sudo bash deploy/server-install.sh
+# Update later (from the same folder):
+#   git pull && sudo bash deploy/server-install.sh
 #
 # Runs the hub as the systemd service "mapper-hub" straight from this folder. The hub is
 # its own web server - no nginx needed. Safe to re-run.
@@ -35,10 +36,18 @@ say "Node $(node -v)"
 say "Installing dependencies in $APP"
 cd "$APP"
 npm ci --omit=dev --no-audit --no-fund
-id mapper >/dev/null 2>&1 || useradd --system --home "$APP" --shell /usr/sbin/nologin mapper
-chown -R mapper:mapper "$APP"
-# git refuses to work in a repo owned by another user unless told it's fine
-git config --global --add safe.directory "$APP" 2>/dev/null || true
+
+# Run as a dedicated "mapper" user when the folder allows it. A clone under /root is not
+# readable by other users, so there the service runs as root and ownership is left alone.
+if [[ "$APP" == /root* ]]; then
+  RUN_AS=root
+else
+  RUN_AS=mapper
+  id mapper >/dev/null 2>&1 || useradd --system --home "$APP" --shell /usr/sbin/nologin mapper
+  chown -R mapper:mapper "$APP"
+  # git refuses to work in a repo owned by another user unless told it's fine
+  git config --global --add safe.directory "$APP" 2>/dev/null || true
+fi
 
 # ---- service ---------------------------------------------------------------
 say "Service on port $PORT"
@@ -49,7 +58,7 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-User=mapper
+User=$RUN_AS
 WorkingDirectory=$APP
 Environment=PORT=$PORT
 Environment=HOST=0.0.0.0

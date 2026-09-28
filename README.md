@@ -84,6 +84,18 @@ The avatar is `Xbot.glb` from the three.js examples (a Mixamo character). Figure
 
 ## Deploying on the broker server
 
+On the server, from wherever you want it to live:
+
+```bash
+git clone https://github.com/danielmkongo/mapper-hub.git
+cd mapper-hub
+sudo bash deploy/server-install.sh          # port 7000
+```
+
+To update: `git pull && sudo bash deploy/server-install.sh`. A clone under /root runs the service as root; anywhere else it gets its own `mapper` user.
+
+The steps below are the alternative: pushing from a PC over SSH.
+
 From Git Bash on a PC that can SSH into the server:
 
 ```bash
