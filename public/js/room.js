@@ -182,24 +182,16 @@ function officeChair(g, x, z, ry) {
   return c;
 }
 
-// Stackable chair: padded seat and a slatted back on a chrome sled frame.
+// Stackable black shell chair on a chrome sled base (solid back, as in the photos).
 function sledChair(g, x, z, ry) {
   const c = new THREE.Group();
   for (const s of [-1, 1]) {
-    // one continuous rod per side: front leg -> floor runner -> rear upright -> back support
-    c.add(tube([[s * 0.22, 0.43, -0.2], [s * 0.225, 0.2, -0.24], [s * 0.225, 0.012, -0.26],
-      [s * 0.225, 0.012, 0.18], [s * 0.22, 0.2, 0.2], [s * 0.215, 0.43, 0.22], [s * 0.2, 0.86, 0.27]], 0.011, M.chrome));
+    c.add(tube([[s * 0.22, 0.44, -0.22], [s * 0.22, 0.02, -0.26], [s * 0.22, 0.01, 0.2], [s * 0.21, 0.44, 0.22], [s * 0.2, 0.86, 0.26]], 0.011, M.chrome));
   }
-  c.add(box(0.44, 0.02, 0.02, M.chrome, 0, 0.43, -0.2)); // front cross bar
-  c.add(box(0.4, 0.03, 0.4, M.blackPlastic, 0, 0.435, 0));
-  c.add(rbox(0.46, 0.055, 0.44, 0.022, M.fabric, 0, 0.475, 0));
-  // back: four horizontal slats with gaps, like the ventilated backs in the photos
-  const backG = new THREE.Group();
-  for (let i = 0; i < 4; i++) backG.add(rbox(0.42, 0.062, 0.024, 0.01, M.blackPlastic, 0, 0.6 + i * 0.075, 0));
-  backG.add(rbox(0.44, 0.03, 0.03, 0.012, M.blackPlastic, 0, 0.9, 0)); // top rail
-  backG.position.z = 0.25;
-  backG.rotation.x = -0.1;
-  c.add(backG);
+  c.add(rbox(0.46, 0.05, 0.44, 0.02, M.fabric, 0, 0.46, 0));
+  const back = rbox(0.44, 0.34, 0.03, 0.02, M.blackPlastic, 0, 0.72, 0.24);
+  back.rotation.x = -0.1;
+  c.add(back);
   c.position.set(x, 0, z);
   c.rotation.y = ry;
   g.add(c);
