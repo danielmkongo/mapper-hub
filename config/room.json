@@ -2,12 +2,12 @@
   "_comment": "Room frame: origin at the floor in the window/orange-panel corner. x runs along the window wall (m), z runs away from the window into the room (m), y is height. Measure the anchors with a tape from that corner and put the numbers here - nothing else needs to change.",
 
   "name": "Lab",
-  "size": { "x": 4.2, "z": 5.0, "height": 2.7 },
+  "size": { "x": 4.5, "z": 5.3, "height": 2.7 },
 
   "anchors": [
     { "id": "A", "x": 0.15, "y": 2.20, "z": 0.15 },
-    { "id": "B", "x": 4.05, "y": 2.20, "z": 0.15 },
-    { "id": "C", "x": 0.15, "y": 2.20, "z": 4.85 }
+    { "id": "B", "x": 4.35, "y": 2.20, "z": 0.15 },
+    { "id": "C", "x": 0.15, "y": 2.20, "z": 5.15 }
   ],
 
   "tagHeight": 1.10,

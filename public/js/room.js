@@ -208,9 +208,13 @@ function deskMonitor(g, x, y, z, ry) {
 // ---------------------------------------------------------------------------
 export const LAYOUT = (size) => {
   const { x: X, z: Z } = size;
-  const deskX0 = 0.55, deskX1 = Math.min(X - 1.0, 3.2);
+  // North wall, west to east: acoustic-foam panel, the windows, then a solid green section
+  // (in line with the glass) carrying the whiteboard.
+  const winX0 = 0.55, winX1 = X - 1.45;
+  const deskX0 = 0.6, deskX1 = winX1 - 0.1;
   const benchZ0 = 0.75, benchZ1 = Math.min(benchZ0 + 3.2, Z - 1.2);
   return {
+    winX0, winX1,                         // glazed span of the north wall
     deskX0, deskX1,                       // window desk span
     benchZ0, benchZ1,                     // monitor bench span along the east wall
     table: { x: X * 0.47, z: Z * 0.56 },  // octagon table centre
@@ -239,29 +243,45 @@ export function buildRoom(scene, config) {
   ceil.rotation.x = Math.PI / 2;
   ceilG.add(ceil);
 
-  // -------- north: window wall --------
+  // -------- north: foam panel | windows | green wall with the whiteboard --------
+  const { winX0: w0, winX1: w1 } = L;
+  const WW = w1 - w0;
   const sill = 0.12;
-  north.add(box(X, sill, 0.08, M.frame, X / 2, sill / 2, -0.02));
-  north.add(mesh(new THREE.PlaneGeometry(X, H - sill - 0.05), M.glass, X / 2, sill + (H - sill - 0.05) / 2, 0, { cast: false, receive: false }));
-  [0, 0.24, 0.46, 0.66, 0.82, 1].forEach((f) => north.add(box(0.06, H, 0.1, M.frame, X * f, H / 2, 0)));
-  north.add(box(X, 0.06, 0.1, M.frame, X / 2, 2.25, 0));
-  north.add(box(X, 0.05, 0.1, M.frame, X / 2, H - 0.025, 0));
+  north.add(box(WW, sill, 0.08, M.frame, (w0 + w1) / 2, sill / 2, -0.02));
+  north.add(mesh(new THREE.PlaneGeometry(WW, H - sill - 0.05), M.glass, (w0 + w1) / 2, sill + (H - sill - 0.05) / 2, 0, { cast: false, receive: false }));
+  [0, 0.3, 0.52, 0.75, 1].forEach((f) => north.add(box(0.06, H, 0.1, M.frame, w0 + WW * f, H / 2, 0)));
+  north.add(box(WW, 0.06, 0.1, M.frame, (w0 + w1) / 2, 2.25, 0));
+  north.add(box(WW, 0.05, 0.1, M.frame, (w0 + w1) / 2, H - 0.025, 0));
   // the glass door in the window run
-  north.add(box(0.05, 2.1, 0.1, M.frame, X * 0.31, 1.05, 0));
-  north.add(box(0.05, 2.1, 0.1, M.frame, X * 0.45, 1.05, 0));
-  // outside: a curved panorama (holds up from any angle) swapped for day / night
+  north.add(box(0.05, 2.1, 0.1, M.frame, w0 + WW * 0.33, 1.05, 0));
+  north.add(box(0.05, 2.1, 0.1, M.frame, w0 + WW * 0.5, 1.05, 0));
+  // acoustic foam panel at the west end of the glass
+  north.add(box(w0, H, 0.06, M.foam, w0 / 2, H / 2, -0.03, { cast: false }));
+  const foamGeo = new THREE.ConeGeometry(0.045, 0.05, 4);
+  for (let fy = 0.25; fy < H - 0.2; fy += 0.08)
+    for (let fx = 0.06; fx < w0 - 0.04; fx += 0.08) {
+      const f = mesh(foamGeo, M.foam, fx, fy, 0.02, { cast: false, receive: false });
+      f.rotation.set(Math.PI / 2, Math.PI / 4, 0);
+      north.add(f);
+    }
+  // solid green section east of the glass, with the whiteboard on it
+  const wallW = X - w1;
+  north.add(mesh(new THREE.PlaneGeometry(wallW, H), M.wall, w1 + wallW / 2, H / 2, 0, { cast: false }));
+  north.add(box(wallW, 0.08, 0.012, M.skirting, w1 + wallW / 2, 0.04, 0.006, { cast: false }));
+  const wbx = w1 + wallW / 2 + 0.05;
+  north.add(box(0.98, 0.62, 0.03, new THREE.MeshStandardMaterial({ color: 0xb8bcc0, metalness: 0.7, roughness: 0.3 }), wbx, 1.72, 0.015));
+  north.add(mesh(new THREE.PlaneGeometry(0.94, 0.58), new THREE.MeshStandardMaterial({ map: T.whiteboard(), roughness: 0.18 }),
+    wbx, 1.72, 0.032, { cast: false }));
+  north.add(box(0.6, 0.02, 0.05, M.frame, wbx, 1.41, 0.04, { cast: false }));
+  // outside: a curved panorama, so it holds up from any angle through the glass
   const panoMat = new THREE.MeshBasicMaterial({ map: T.citySunset(), side: THREE.BackSide, toneMapped: false });
   north.add(mesh(new THREE.CylinderGeometry(9, 9, 11, 48, 1, true, -Math.PI * 0.42, Math.PI * 0.84), panoMat,
     X / 2, 3.0, Z / 2, { cast: false, receive: false, ry: Math.PI }));
   north.add(box(X + 2, 0.12, 1.4, new THREE.MeshStandardMaterial({ color: 0x8b8680, roughness: 0.9 }), X / 2, -0.25, -0.9, { cast: false }));
 
-  // -------- east: green wall, whiteboard --------
+  // -------- east: green wall --------
   east.add(mesh(new THREE.PlaneGeometry(Z, H), M.wall, X, H / 2, Z / 2, { cast: false, ry: -Math.PI / 2 }));
   east.add(box(0.012, 0.08, Z, M.skirting, X - 0.006, 0.04, Z / 2, { cast: false }));
-  east.add(box(0.03, 0.62, 0.98, new THREE.MeshStandardMaterial({ color: 0xb8bcc0, metalness: 0.7, roughness: 0.3 }), X - 0.015, 1.72, 0.95));
-  east.add(mesh(new THREE.PlaneGeometry(0.94, 0.58), new THREE.MeshStandardMaterial({ map: T.whiteboard(), roughness: 0.18 }),
-    X - 0.032, 1.72, 0.95, { cast: false, ry: -Math.PI / 2 }));
-  east.add(box(0.05, 0.02, 0.6, M.frame, X - 0.04, 1.41, 0.95, { cast: false }));
 
   // -------- south: orange sliding panels --------
   const panelW = X / 3;
@@ -293,13 +313,6 @@ export function buildRoom(scene, config) {
   outside.add(box(0.3, 0.35, 0.4, new THREE.MeshStandardMaterial({ color: 0x3f8f4a, roughness: 0.8 }), -0.6, 2.05, Z * 0.36, { cast: false }));
   [pz0, (pz0 + pz1) / 2, pz1].forEach((z) => west.add(box(0.07, H, 0.06, M.frame, 0, H / 2, z)));
   [0.05, 1.3, H - 0.05].forEach((y) => west.add(box(0.07, 0.06, pz1 - pz0, M.frame, 0, y, (pz0 + pz1) / 2, { cast: false })));
-  const foamGeo = new THREE.ConeGeometry(0.045, 0.05, 4);
-  for (let fy = 0.9; fy < 2.5; fy += 0.08)
-    for (let fz = 0.06; fz < 0.5; fz += 0.08) {
-      const f = mesh(foamGeo, M.foam, 0.02, fy, fz, { cast: false, receive: false });
-      f.rotation.set(Math.PI / 4, 0, -Math.PI / 2);
-      west.add(f);
-    }
   [[1.65, 0.2], [1.35, 0.2]].forEach(([y, z]) =>
     west.add(box(0.02, 0.26, 0.2, new THREE.MeshStandardMaterial({ color: 0xf2efe6, roughness: 0.6 }), 0.01, y, z + 0.1, { cast: false })));
   west.add(rbox(0.04, 0.26, 0.14, 0.01, new THREE.MeshStandardMaterial({ color: 0xcfd2cf, roughness: 0.5 }), 0.02, 1.62, doorZ0 - 0.1, { cast: false }));
