@@ -316,6 +316,27 @@ async function main() {
 
   setInterval(() => { $('clock').textContent = new Date().toLocaleTimeString([], { hour12: false }); }, 1000);
 
+  // ---- fullscreen ----
+  // Browsers only allow fullscreen from a user action, so the twin takes over the whole
+  // screen on the first click / tap / key after loading. Escape leaves (browser default);
+  // the corner button or F goes back in. Installed as an app, it opens fullscreen anyway.
+  const fs = () => document.fullscreenElement;
+  const enterFs = () => { if (!fs()) document.documentElement.requestFullscreen?.({ navigationUI: 'hide' }).catch(() => {}); };
+  const firstGesture = () => {
+    enterFs();
+    removeEventListener('pointerdown', firstGesture, true);
+    removeEventListener('keydown', firstGesture, true);
+  };
+  addEventListener('pointerdown', firstGesture, true);
+  addEventListener('keydown', firstGesture, true);
+  $('fsBtn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    fs() ? document.exitFullscreen() : enterFs();
+  });
+  addEventListener('keydown', (e) => {
+    if ((e.key === 'f' || e.key === 'F') && !e.ctrlKey && !e.metaKey && !e.altKey) enterFs();
+  });
+
   // ---- frame loop ----
   const clock = new THREE.Clock();
   const tmp = new THREE.Vector3();

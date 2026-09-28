@@ -2,7 +2,7 @@
   "name": "Mapper Live",
   "short_name": "Mapper",
   "start_url": "./",
-  "display": "standalone",
+  "display": "fullscreen",
   "background_color": "#0b1016",
   "theme_color": "#0b1016",
   "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }]

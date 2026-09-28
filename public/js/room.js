@@ -108,65 +108,98 @@ function octagonTable(g, x, z) {
   return t;
 }
 
-// Mesh high-back office chair with headrest and 5-star chrome base.
+// Mesh high-back office chair (as in the photos): curved ribbed mesh back in a moulded
+// frame, spine to the seat, headrest on a stalk, L-shaped arms, padded seat, 5-star chrome
+// base on casters. Local frame: the sitter faces -z, the back is toward +z.
+const tube = (pts, r, mat, closed = false) => {
+  const curve = new THREE.CatmullRomCurve3(pts.map((p) => new THREE.Vector3(...p)), closed, 'centripetal');
+  return mesh(new THREE.TubeGeometry(curve, closed ? 64 : 32, r, 8, closed), mat, 0, 0, 0);
+};
+
+let chairMeshMat = null;
 function officeChair(g, x, z, ry) {
   const c = new THREE.Group();
-  // base
+
+  // base: five arms, casters, gas lift with its black shroud
   for (let i = 0; i < 5; i++) {
     const a = (i / 5) * Math.PI * 2;
-    const arm = box(0.32, 0.03, 0.045, M.chrome, Math.cos(a) * 0.16, 0.07, Math.sin(a) * 0.16);
+    const ax = Math.cos(a), az = Math.sin(a);
+    const arm = rbox(0.3, 0.035, 0.05, 0.012, M.chrome, ax * 0.15, 0.085, az * 0.15);
     arm.rotation.y = -a;
     c.add(arm);
-    c.add(mesh(new THREE.SphereGeometry(0.028, 12, 8), M.blackPlastic, Math.cos(a) * 0.31, 0.03, Math.sin(a) * 0.31));
+    const wheel = cyl(0.028, 0.028, 0.026, 14, M.blackPlastic, ax * 0.3, 0.03, az * 0.3);
+    wheel.rotation.set(Math.PI / 2, 0, 0);
+    wheel.rotation.order = 'YXZ';
+    wheel.rotation.y = -a + Math.PI / 2;
+    c.add(wheel);
+    c.add(box(0.03, 0.04, 0.03, M.blackPlastic, ax * 0.3, 0.075, az * 0.3)); // caster fork
   }
-  c.add(cyl(0.022, 0.022, 0.32, 16, M.chrome, 0, 0.24, 0));
-  c.add(cyl(0.032, 0.032, 0.12, 16, M.blackPlastic, 0, 0.14, 0));
-  // seat
-  c.add(rbox(0.5, 0.08, 0.48, 0.03, M.fabric, 0, 0.47, 0));
-  c.add(box(0.44, 0.025, 0.42, M.blackPlastic, 0, 0.42, 0));
-  // back: mesh panel (alpha ribbing) in a plastic frame
-  const meshMat = new THREE.MeshStandardMaterial({
-    color: 0x16171a, roughness: 0.8, alphaMap: T.meshBack(), transparent: true, side: THREE.DoubleSide,
-  });
-  const back = mesh(new THREE.PlaneGeometry(0.44, 0.55), meshMat, 0, 0.84, 0.26, { receive: false });
-  back.rotation.x = -0.12;
+  c.add(cyl(0.045, 0.05, 0.05, 20, M.chrome, 0, 0.095, 0)); // hub
+  c.add(cyl(0.022, 0.022, 0.22, 16, M.chrome, 0, 0.21, 0));
+  c.add(cyl(0.036, 0.036, 0.14, 16, M.blackPlastic, 0, 0.19, 0));
+  c.add(box(0.22, 0.04, 0.2, M.blackPlastic, 0, 0.35, 0)); // tilt mechanism
+
+  // seat: padded cushion on a moulded pan
+  c.add(box(0.44, 0.03, 0.42, M.blackPlastic, 0, 0.39, 0));
+  c.add(rbox(0.5, 0.085, 0.48, 0.035, M.fabric, 0, 0.445, 0));
+
+  // back: a curved ribbed mesh panel (a slice of a cylinder, so it wraps the sitter)
+  if (!chairMeshMat) {
+    chairMeshMat = new THREE.MeshStandardMaterial({
+      color: 0x15161a, roughness: 0.85, alphaMap: T.meshBack(), transparent: true, side: THREE.DoubleSide,
+    });
+  }
+  const R = 0.6, th = 0.37, y0 = 0.6, y1 = 1.13, zc = 0.3 - R;
+  const back = new THREE.Group();
+  const panel = mesh(new THREE.CylinderGeometry(R, R, y1 - y0, 20, 1, true, -th, th * 2), chairMeshMat, 0, (y0 + y1) / 2, zc, { receive: false });
+  back.add(panel);
+  // moulded frame following the same curve
+  const edge = [];
+  const at = (t, y) => [R * Math.sin(t), y, zc + R * Math.cos(t)];
+  for (let i = 0; i <= 8; i++) edge.push(at(-th + (2 * th * i) / 8, y1));
+  edge.push(at(th + 0.01, (y0 + y1) / 2));
+  for (let i = 8; i >= 0; i--) edge.push(at(-th + (2 * th * i) / 8, y0));
+  edge.push(at(-th - 0.01, (y0 + y1) / 2));
+  back.add(tube(edge, 0.014, M.blackPlastic, true));
+  // headrest on a stalk
+  back.add(box(0.035, 0.12, 0.02, M.blackPlastic, 0, y1 + 0.06, 0.305));
+  back.add(rbox(0.3, 0.12, 0.07, 0.03, M.fabric, 0, y1 + 0.16, 0.3));
+  back.rotation.x = -0.1; // reclined slightly, pivoting at the seat
+  back.position.set(0, 0.04, 0.05);
   c.add(back);
-  const frameGeo = new THREE.TorusGeometry(0.25, 0.012, 8, 32);
-  const f = mesh(frameGeo, M.blackPlastic, 0, 0.84, 0.26);
-  f.scale.set(0.9, 1.12, 1);
-  f.rotation.x = -0.12;
-  c.add(f);
-  c.add(box(0.05, 0.36, 0.03, M.blackPlastic, 0, 0.62, 0.25)); // spine
-  // headrest
-  const head = rbox(0.28, 0.12, 0.06, 0.03, M.fabric, 0, 1.22, 0.31);
-  head.rotation.x = -0.18;
-  c.add(head);
-  c.add(box(0.03, 0.16, 0.02, M.blackPlastic, 0, 1.12, 0.3));
-  // arms
+  // spine from under the seat up to the back frame
+  c.add(tube([[0, 0.37, 0.12], [0, 0.4, 0.24], [0, 0.5, 0.31], [0, 0.63, 0.33]], 0.022, M.blackPlastic));
+
+  // L-shaped arms: post from the seat side, padded rest on top
   for (const s of [-1, 1]) {
-    c.add(box(0.035, 0.2, 0.035, M.blackPlastic, s * 0.26, 0.58, 0.02));
-    c.add(rbox(0.06, 0.03, 0.26, 0.012, M.blackPlastic, s * 0.26, 0.69, 0.0));
+    c.add(tube([[s * 0.2, 0.4, 0.1], [s * 0.26, 0.42, 0.08], [s * 0.27, 0.55, 0.05], [s * 0.27, 0.64, 0.04]], 0.016, M.blackPlastic));
+    c.add(rbox(0.07, 0.03, 0.25, 0.013, M.blackPlastic, s * 0.27, 0.66, 0.0));
   }
+
   c.position.set(x, 0, z);
   c.rotation.y = ry;
   g.add(c);
   return c;
 }
 
-// Stackable black shell chair on a chrome sled base.
+// Stackable chair: padded seat and a slatted back on a chrome sled frame.
 function sledChair(g, x, z, ry) {
   const c = new THREE.Group();
-  const tube = (pts) => {
-    const curve = new THREE.CatmullRomCurve3(pts.map((p) => new THREE.Vector3(...p)));
-    return mesh(new THREE.TubeGeometry(curve, 40, 0.011, 8), M.chrome, 0, 0, 0);
-  };
   for (const s of [-1, 1]) {
-    c.add(tube([[s * 0.22, 0.44, -0.22], [s * 0.22, 0.02, -0.26], [s * 0.22, 0.01, 0.2], [s * 0.21, 0.44, 0.22], [s * 0.2, 0.86, 0.26]]));
+    // one continuous rod per side: front leg -> floor runner -> rear upright -> back support
+    c.add(tube([[s * 0.22, 0.43, -0.2], [s * 0.225, 0.2, -0.24], [s * 0.225, 0.012, -0.26],
+      [s * 0.225, 0.012, 0.18], [s * 0.22, 0.2, 0.2], [s * 0.215, 0.43, 0.22], [s * 0.2, 0.86, 0.27]], 0.011, M.chrome));
   }
-  c.add(rbox(0.46, 0.05, 0.44, 0.02, M.fabric, 0, 0.46, 0));
-  const back = rbox(0.44, 0.34, 0.03, 0.02, M.blackPlastic, 0, 0.72, 0.24);
-  back.rotation.x = -0.1;
-  c.add(back);
+  c.add(box(0.44, 0.02, 0.02, M.chrome, 0, 0.43, -0.2)); // front cross bar
+  c.add(box(0.4, 0.03, 0.4, M.blackPlastic, 0, 0.435, 0));
+  c.add(rbox(0.46, 0.055, 0.44, 0.022, M.fabric, 0, 0.475, 0));
+  // back: four horizontal slats with gaps, like the ventilated backs in the photos
+  const backG = new THREE.Group();
+  for (let i = 0; i < 4; i++) backG.add(rbox(0.42, 0.062, 0.024, 0.01, M.blackPlastic, 0, 0.6 + i * 0.075, 0));
+  backG.add(rbox(0.44, 0.03, 0.03, 0.012, M.blackPlastic, 0, 0.9, 0)); // top rail
+  backG.position.z = 0.25;
+  backG.rotation.x = -0.1;
+  c.add(backG);
   c.position.set(x, 0, z);
   c.rotation.y = ry;
   g.add(c);
@@ -208,9 +241,9 @@ function deskMonitor(g, x, y, z, ry) {
 // ---------------------------------------------------------------------------
 export const LAYOUT = (size) => {
   const { x: X, z: Z } = size;
-  // North wall, west to east: acoustic-foam panel, the windows, then a solid green section
+  // North wall, west to east: the windows (from the corner), then a solid green section
   // (in line with the glass) carrying the whiteboard.
-  const winX0 = 0.55, winX1 = X - 1.45;
+  const winX0 = 0.0, winX1 = X - 1.45;
   const deskX0 = 0.6, deskX1 = winX1 - 0.1;
   const benchZ0 = 0.75, benchZ1 = Math.min(benchZ0 + 3.2, Z - 1.2);
   return {
@@ -243,7 +276,7 @@ export function buildRoom(scene, config) {
   ceil.rotation.x = Math.PI / 2;
   ceilG.add(ceil);
 
-  // -------- north: foam panel | windows | green wall with the whiteboard --------
+  // -------- north: windows | green wall with the whiteboard --------
   const { winX0: w0, winX1: w1 } = L;
   const WW = w1 - w0;
   const sill = 0.12;
@@ -255,15 +288,6 @@ export function buildRoom(scene, config) {
   // the glass door in the window run
   north.add(box(0.05, 2.1, 0.1, M.frame, w0 + WW * 0.33, 1.05, 0));
   north.add(box(0.05, 2.1, 0.1, M.frame, w0 + WW * 0.5, 1.05, 0));
-  // acoustic foam panel at the west end of the glass
-  north.add(box(w0, H, 0.06, M.foam, w0 / 2, H / 2, -0.03, { cast: false }));
-  const foamGeo = new THREE.ConeGeometry(0.045, 0.05, 4);
-  for (let fy = 0.25; fy < H - 0.2; fy += 0.08)
-    for (let fx = 0.06; fx < w0 - 0.04; fx += 0.08) {
-      const f = mesh(foamGeo, M.foam, fx, fy, 0.02, { cast: false, receive: false });
-      f.rotation.set(Math.PI / 2, Math.PI / 4, 0);
-      north.add(f);
-    }
   // solid green section east of the glass, with the whiteboard on it
   const wallW = X - w1;
   north.add(mesh(new THREE.PlaneGeometry(wallW, H), M.wall, w1 + wallW / 2, H / 2, 0, { cast: false }));
@@ -306,15 +330,26 @@ export function buildRoom(scene, config) {
   const leaf = box(0.04, 2.04, 0.88, M.door, -0.42, 1.02, doorZ0 + 0.35);
   leaf.rotation.y = Math.PI / 2.3;
   outside.add(leaf);
-  const pz0 = 0.55, pz1 = doorZ0 - 0.2;
+  const pz0 = 0.95, pz1 = doorZ0 - 0.2;
+  west.add(box(0.1, H, pz0 - 0.55, M.wall, -0.05, H / 2, (0.55 + pz0) / 2)); // certificates wall
+  // acoustic foam: upper half of the pier next to the window, not down to the floor
+  const FOAM_Y0 = 1.25;
+  west.add(box(0.04, H - 0.05 - FOAM_Y0, 0.5, M.foam, 0.02, (FOAM_Y0 + H - 0.05) / 2, 0.28, { cast: false }));
+  const foamGeo = new THREE.ConeGeometry(0.045, 0.05, 4);
+  for (let fy = FOAM_Y0 + 0.05; fy < H - 0.08; fy += 0.08)
+    for (let fz = 0.07; fz < 0.52; fz += 0.08) {
+      const f = mesh(foamGeo, M.foam, 0.05, fy, fz, { cast: false, receive: false });
+      f.rotation.set(Math.PI / 4, 0, -Math.PI / 2);
+      west.add(f);
+    }
   west.add(box(0.1, H, 0.2, M.wall, -0.05, H / 2, (pz1 + doorZ0) / 2)); // meter pier
   west.add(mesh(new THREE.PlaneGeometry(pz1 - pz0, H - 0.1), M.frosted, 0, H / 2, (pz0 + pz1) / 2, { cast: false, ry: Math.PI / 2 }));
   outside.add(box(0.5, 1.9, 0.9, new THREE.MeshStandardMaterial({ color: 0xc9a27a, roughness: 0.8 }), -0.6, 0.95, Z * 0.4, { cast: false }));
   outside.add(box(0.3, 0.35, 0.4, new THREE.MeshStandardMaterial({ color: 0x3f8f4a, roughness: 0.8 }), -0.6, 2.05, Z * 0.36, { cast: false }));
   [pz0, (pz0 + pz1) / 2, pz1].forEach((z) => west.add(box(0.07, H, 0.06, M.frame, 0, H / 2, z)));
   [0.05, 1.3, H - 0.05].forEach((y) => west.add(box(0.07, 0.06, pz1 - pz0, M.frame, 0, y, (pz0 + pz1) / 2, { cast: false })));
-  [[1.65, 0.2], [1.35, 0.2]].forEach(([y, z]) =>
-    west.add(box(0.02, 0.26, 0.2, new THREE.MeshStandardMaterial({ color: 0xf2efe6, roughness: 0.6 }), 0.01, y, z + 0.1, { cast: false })));
+  [[1.72, 0.75], [1.38, 0.68], [1.38, 0.84]].forEach(([y, z], k) =>
+    west.add(box(0.02, 0.26, k ? 0.14 : 0.2, new THREE.MeshStandardMaterial({ color: 0xf2efe6, roughness: 0.6 }), 0.01, y, z, { cast: false })));
   west.add(rbox(0.04, 0.26, 0.14, 0.01, new THREE.MeshStandardMaterial({ color: 0xcfd2cf, roughness: 0.5 }), 0.02, 1.62, doorZ0 - 0.1, { cast: false }));
   west.add(box(0.005, 0.06, 0.08, new THREE.MeshStandardMaterial({ color: 0x4d6b57, roughness: 0.3 }), 0.042, 1.68, doorZ0 - 0.1, { cast: false }));
   west.add(cyl(0.004, 0.004, H - 1.75, 6, new THREE.MeshStandardMaterial({ color: 0xeeeeee }), 0.02, 1.75 + (H - 1.75) / 2, doorZ0 - 0.06, { cast: false }));
@@ -397,8 +432,6 @@ export function buildRoom(scene, config) {
   const facing = (a, d) => [TX + Math.cos(a) * d, TZ + Math.sin(a) * d, Math.PI / 2 - a];
   [Math.PI, 2.35, Math.PI / 2].forEach((a) => officeChair(g, ...facing(a, 1.1)));
   sledChair(g, ...facing(0.9, 1.08));
-  const [bpx, bpz] = facing(0.9, 1.26);
-  g.add(rbox(0.3, 0.42, 0.18, 0.06, new THREE.MeshStandardMaterial({ color: 0x241f22, roughness: 0.9 }), bpx, 0.72, bpz));
 
   g.add(north, east, south, west, ceilG);
 
