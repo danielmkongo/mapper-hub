@@ -10,6 +10,7 @@
 //   centre        octagonal meeting table, mesh office chairs and sled chairs
 import * as THREE from 'three';
 import { RoundedBoxGeometry } from 'three/addons/geometries/RoundedBoxGeometry.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import * as T from './textures.js';
 
 const M = {}; // shared materials, created once
@@ -201,22 +202,39 @@ function deskMonitor(g, x, y, z, ry) {
 
 // ---------------------------------------------------------------------------
 // Room shell
+//
+// Everything is placed relative to the walls, so changing size in config/room.json moves
+// the furniture with it. Proportions follow the site photos.
 // ---------------------------------------------------------------------------
+export const LAYOUT = (size) => {
+  const { x: X, z: Z } = size;
+  const deskX0 = 0.55, deskX1 = Math.min(X - 1.0, 3.2);
+  const benchZ0 = 0.75, benchZ1 = Math.min(benchZ0 + 3.2, Z - 1.2);
+  return {
+    deskX0, deskX1,                       // window desk span
+    benchZ0, benchZ1,                     // monitor bench span along the east wall
+    table: { x: X * 0.47, z: Z * 0.56 },  // octagon table centre
+    doorZ0: Z - 1.0, doorZ1: Z - 0.1,     // doorway on the west wall
+  };
+};
+
 export function buildRoom(scene, config) {
   const { x: X, z: Z, height: H } = config.size;
+  const L = LAYOUT(config.size);
   materials(config.size);
   const g = new THREE.Group();
   g.name = 'room';
   scene.add(g);
   const screens = [];
 
-  // floor / ceiling
   const floor = mesh(new THREE.PlaneGeometry(X, Z), M.floor, X / 2, 0, Z / 2, { cast: false });
   floor.rotation.x = -Math.PI / 2;
   g.add(floor);
   // Each enclosing surface is its own group so the viewer can cut away whichever ones
   // stand between the camera and the room (dollhouse view).
-  const north = new THREE.Group(), east = new THREE.Group(), ceilG = new THREE.Group();
+  const north = new THREE.Group(), east = new THREE.Group(), south = new THREE.Group();
+  const west = new THREE.Group(), ceilG = new THREE.Group();
+  const outside = new THREE.Group(); // beyond the walls: hidden in the plan view
   const ceil = mesh(new THREE.PlaneGeometry(X, Z), M.ceiling, X / 2, H, Z / 2, { cast: false });
   ceil.rotation.x = Math.PI / 2;
   ceilG.add(ceil);
@@ -224,175 +242,161 @@ export function buildRoom(scene, config) {
   // -------- north: window wall --------
   const sill = 0.12;
   north.add(box(X, sill, 0.08, M.frame, X / 2, sill / 2, -0.02));
-  const win = mesh(new THREE.PlaneGeometry(X, H - sill - 0.05), M.glass, X / 2, sill + (H - sill - 0.05) / 2, 0, { cast: false, receive: false });
-  north.add(win);
-  const mullions = [0, 0.95, 1.85, 2.65, 3.3, X];
-  mullions.forEach((mx) => north.add(box(0.06, H, 0.1, M.frame, mx, H / 2, 0)));
+  north.add(mesh(new THREE.PlaneGeometry(X, H - sill - 0.05), M.glass, X / 2, sill + (H - sill - 0.05) / 2, 0, { cast: false, receive: false }));
+  [0, 0.24, 0.46, 0.66, 0.82, 1].forEach((f) => north.add(box(0.06, H, 0.1, M.frame, X * f, H / 2, 0)));
   north.add(box(X, 0.06, 0.1, M.frame, X / 2, 2.25, 0));
   north.add(box(X, 0.05, 0.1, M.frame, X / 2, H - 0.025, 0));
-  // glass door frame inside the window run (photos show a door-height transom)
-  north.add(box(0.05, 2.1, 0.1, M.frame, 1.25, 1.05, 0));
-  north.add(box(0.05, 2.1, 0.1, M.frame, 1.8, 1.05, 0));
-
-  // outside view: unlit, bright, far enough for parallax
-  // A curved panorama (not a flat board) so it holds up from any angle through the glass.
-  const panoGeo = new THREE.CylinderGeometry(9, 9, 11, 64, 1, true, -Math.PI * 0.42, Math.PI * 0.84);
-  // Opaque on purpose: transmissive glass only refracts opaque objects behind it.
-  const view = mesh(panoGeo, new THREE.MeshBasicMaterial({ map: T.citySunset(), side: THREE.BackSide, toneMapped: false }),
-    X / 2, 3.0, Z / 2, { cast: false, receive: false, ry: Math.PI });
-  north.add(view);
-  // a balcony slab just outside, gives the depth cue seen in the photos
+  // the glass door in the window run
+  north.add(box(0.05, 2.1, 0.1, M.frame, X * 0.31, 1.05, 0));
+  north.add(box(0.05, 2.1, 0.1, M.frame, X * 0.45, 1.05, 0));
+  // outside: a curved panorama (holds up from any angle) swapped for day / night
+  const panoMat = new THREE.MeshBasicMaterial({ map: T.citySunset(), side: THREE.BackSide, toneMapped: false });
+  north.add(mesh(new THREE.CylinderGeometry(9, 9, 11, 48, 1, true, -Math.PI * 0.42, Math.PI * 0.84), panoMat,
+    X / 2, 3.0, Z / 2, { cast: false, receive: false, ry: Math.PI }));
   north.add(box(X + 2, 0.12, 1.4, new THREE.MeshStandardMaterial({ color: 0x8b8680, roughness: 0.9 }), X / 2, -0.25, -0.9, { cast: false }));
 
-  // -------- east: green wall --------
-  const eastWall = mesh(new THREE.PlaneGeometry(Z, H), M.wall, X, H / 2, Z / 2, { cast: false, ry: -Math.PI / 2 });
-  east.add(eastWall);
-  east.add(box(0.012, 0.08, Z, M.skirting, X - 0.006, 0.04, Z / 2));
-  // whiteboard near the window corner
-  east.add(box(0.03, 0.62, 0.98, new THREE.MeshStandardMaterial({ color: 0xb8bcc0, metalness: 0.7, roughness: 0.3 }), X - 0.015, 1.72, 0.9));
-  const wb = mesh(new THREE.PlaneGeometry(0.94, 0.58), new THREE.MeshStandardMaterial({ map: T.whiteboard(), roughness: 0.18 }),
-    X - 0.032, 1.72, 0.9, { cast: false, ry: -Math.PI / 2 });
-  east.add(wb);
-  east.add(box(0.05, 0.02, 0.6, M.frame, X - 0.04, 1.41, 0.9)); // marker tray
+  // -------- east: green wall, whiteboard --------
+  east.add(mesh(new THREE.PlaneGeometry(Z, H), M.wall, X, H / 2, Z / 2, { cast: false, ry: -Math.PI / 2 }));
+  east.add(box(0.012, 0.08, Z, M.skirting, X - 0.006, 0.04, Z / 2, { cast: false }));
+  east.add(box(0.03, 0.62, 0.98, new THREE.MeshStandardMaterial({ color: 0xb8bcc0, metalness: 0.7, roughness: 0.3 }), X - 0.015, 1.72, 0.95));
+  east.add(mesh(new THREE.PlaneGeometry(0.94, 0.58), new THREE.MeshStandardMaterial({ map: T.whiteboard(), roughness: 0.18 }),
+    X - 0.032, 1.72, 0.95, { cast: false, ry: -Math.PI / 2 }));
+  east.add(box(0.05, 0.02, 0.6, M.frame, X - 0.04, 1.41, 0.95, { cast: false }));
 
   // -------- south: orange sliding panels --------
-  const south = new THREE.Group();
   const panelW = X / 3;
   for (let i = 0; i < 3; i++) {
-    const px = panelW * (i + 0.5);
-    south.add(box(panelW - 0.06, H - 0.1, 0.03, M.sapele, px, (H - 0.1) / 2 + 0.05, Z - 0.04 - (i % 2) * 0.04));
+    south.add(box(panelW - 0.06, H - 0.1, 0.03, M.sapele, panelW * (i + 0.5), (H - 0.1) / 2 + 0.05, Z - 0.04 - (i % 2) * 0.04));
     south.add(box(0.05, H, 0.07, M.frame, panelW * i, H / 2, Z - 0.035));
   }
   south.add(box(0.05, H, 0.07, M.frame, X, H / 2, Z - 0.035));
   south.add(box(X, 0.06, 0.1, M.frame, X / 2, H - 0.03, Z - 0.05));
   south.add(box(X, 0.05, 0.1, M.frame, X / 2, 0.025, Z - 0.05));
-  g.add(east, south);
 
-  // -------- west: partition, meter, doorway, foam corner --------
-  const west = new THREE.Group();
-  const outside = new THREE.Group(); // beyond the walls: hidden in the plan view
-  west.add(outside);
-  const doorZ0 = 2.75, doorZ1 = 3.65; // doorway at the south end
-  // solid wall piece around the door
-  west.add(box(0.1, H, 0.55, M.wall, -0.05, H / 2, 0.275)); // foam corner pier
+  // -------- west: foam pier, frosted partition, meter, doorway --------
+  const { doorZ0, doorZ1 } = L;
+  west.add(box(0.1, H, 0.55, M.wall, -0.05, H / 2, 0.275));
   west.add(box(0.1, H, Z - doorZ1, M.wall, -0.05, H / 2, (doorZ1 + Z) / 2));
   west.add(box(0.1, H - 2.1, doorZ1 - doorZ0, M.wall, -0.05, 2.1 + (H - 2.1) / 2, (doorZ0 + doorZ1) / 2));
   west.add(box(0.12, H, 0.08, M.frame, -0.04, H / 2, doorZ0));
   west.add(box(0.12, H, 0.08, M.frame, -0.04, H / 2, doorZ1));
   west.add(box(0.12, 0.08, doorZ1 - doorZ0, M.frame, -0.04, 2.1, (doorZ0 + doorZ1) / 2));
-  // the corridor beyond the door, dim
   outside.add(box(1.4, H, 1.6, new THREE.MeshStandardMaterial({ color: 0x6b6258, roughness: 0.9, side: THREE.BackSide }),
     -0.8, H / 2, (doorZ0 + doorZ1) / 2, { cast: false }));
-  // door leaf, swung open into the corridor
-  const leaf = box(0.04, 2.04, 0.88, M.door, -0.45, 1.02, doorZ0 + 0.05);
+  const leaf = box(0.04, 2.04, 0.88, M.door, -0.42, 1.02, doorZ0 + 0.35);
   leaf.rotation.y = Math.PI / 2.3;
-  leaf.position.set(-0.42, 1.02, doorZ0 + 0.35);
   outside.add(leaf);
-  // frosted partition over the rest of the west side, in bronze frames
   const pz0 = 0.55, pz1 = doorZ0 - 0.2;
-  west.add(box(0.1, H, pz1 - (doorZ0 - 0.2) + 0.2, M.wall, -0.05, H / 2, (pz1 + doorZ0) / 2)); // meter pier
-  const pane = mesh(new THREE.PlaneGeometry(pz1 - pz0, H - 0.1), M.frosted, 0, H / 2, (pz0 + pz1) / 2, { cast: false, ry: Math.PI / 2 });
-  west.add(pane);
-  // behind the frosted glass: the office next door, shapes blurred by the frost
-  outside.add(box(0.5, 1.9, 0.9, new THREE.MeshStandardMaterial({ color: 0xc9a27a, roughness: 0.8 }), -0.6, 0.95, 1.9, { cast: false }));
-  outside.add(box(0.3, 0.35, 0.4, new THREE.MeshStandardMaterial({ color: 0x3f8f4a, roughness: 0.8 }), -0.6, 2.05, 1.7, { cast: false }));
+  west.add(box(0.1, H, 0.2, M.wall, -0.05, H / 2, (pz1 + doorZ0) / 2)); // meter pier
+  west.add(mesh(new THREE.PlaneGeometry(pz1 - pz0, H - 0.1), M.frosted, 0, H / 2, (pz0 + pz1) / 2, { cast: false, ry: Math.PI / 2 }));
+  outside.add(box(0.5, 1.9, 0.9, new THREE.MeshStandardMaterial({ color: 0xc9a27a, roughness: 0.8 }), -0.6, 0.95, Z * 0.4, { cast: false }));
+  outside.add(box(0.3, 0.35, 0.4, new THREE.MeshStandardMaterial({ color: 0x3f8f4a, roughness: 0.8 }), -0.6, 2.05, Z * 0.36, { cast: false }));
   [pz0, (pz0 + pz1) / 2, pz1].forEach((z) => west.add(box(0.07, H, 0.06, M.frame, 0, H / 2, z)));
-  [0.05, 1.3, H - 0.05].forEach((y) => west.add(box(0.07, 0.06, pz1 - pz0, M.frame, 0, y, (pz0 + pz1) / 2)));
-  // acoustic foam on the pier next to the window
+  [0.05, 1.3, H - 0.05].forEach((y) => west.add(box(0.07, 0.06, pz1 - pz0, M.frame, 0, y, (pz0 + pz1) / 2, { cast: false })));
   const foamGeo = new THREE.ConeGeometry(0.045, 0.05, 4);
   for (let fy = 0.9; fy < 2.5; fy += 0.08)
     for (let fz = 0.06; fz < 0.5; fz += 0.08) {
-      const f = mesh(foamGeo, M.foam, 0.02, fy, fz, { cast: false });
-      f.rotation.z = -Math.PI / 2;
-      f.rotation.x = Math.PI / 4;
+      const f = mesh(foamGeo, M.foam, 0.02, fy, fz, { cast: false, receive: false });
+      f.rotation.set(Math.PI / 4, 0, -Math.PI / 2);
       west.add(f);
     }
-  // certificates
   [[1.65, 0.2], [1.35, 0.2]].forEach(([y, z]) =>
-    west.add(box(0.02, 0.26, 0.2, new THREE.MeshStandardMaterial({ color: 0xf2efe6, roughness: 0.6 }), 0.01, y, z + 0.1)));
-  // prepaid electricity meter + cable
-  west.add(rbox(0.04, 0.26, 0.14, 0.01, new THREE.MeshStandardMaterial({ color: 0xcfd2cf, roughness: 0.5 }), 0.02, 1.62, doorZ0 - 0.1));
+    west.add(box(0.02, 0.26, 0.2, new THREE.MeshStandardMaterial({ color: 0xf2efe6, roughness: 0.6 }), 0.01, y, z + 0.1, { cast: false })));
+  west.add(rbox(0.04, 0.26, 0.14, 0.01, new THREE.MeshStandardMaterial({ color: 0xcfd2cf, roughness: 0.5 }), 0.02, 1.62, doorZ0 - 0.1, { cast: false }));
   west.add(box(0.005, 0.06, 0.08, new THREE.MeshStandardMaterial({ color: 0x4d6b57, roughness: 0.3 }), 0.042, 1.68, doorZ0 - 0.1, { cast: false }));
-  west.add(cyl(0.004, 0.004, H - 1.75, 6, new THREE.MeshStandardMaterial({ color: 0xeeeeee }), 0.02, 1.75 + (H - 1.75) / 2, doorZ0 - 0.06));
-  g.add(west, north);
+  west.add(cyl(0.004, 0.004, H - 1.75, 6, new THREE.MeshStandardMaterial({ color: 0xeeeeee }), 0.02, 1.75 + (H - 1.75) / 2, doorZ0 - 0.06, { cast: false }));
+  west.add(outside);
 
   // -------- ceiling fixtures --------
   const cassette = new THREE.Group();
-  cassette.add(rbox(0.95, 0.06, 0.95, 0.02, M.whitePlastic, 0, 0, 0));
-  const grilleMat = new THREE.MeshStandardMaterial({ map: T.grille(28), roughness: 0.6 });
-  const gr = mesh(new THREE.PlaneGeometry(0.42, 0.42), grilleMat, 0, -0.031, 0, { cast: false });
+  cassette.add(rbox(0.95, 0.06, 0.95, 0.02, M.whitePlastic, 0, 0, 0, { cast: false }));
+  const gr = mesh(new THREE.PlaneGeometry(0.42, 0.42), new THREE.MeshStandardMaterial({ map: T.grille(28), roughness: 0.6 }), 0, -0.031, 0, { cast: false });
   gr.rotation.x = Math.PI / 2;
   cassette.add(gr);
-  for (let i = 0; i < 4; i++) { // louvres
-    const v = box(0.62, 0.012, 0.07, new THREE.MeshStandardMaterial({ color: 0xd9c9a8, roughness: 0.5 }), 0, -0.035, 0.37);
+  const louvreMat = new THREE.MeshStandardMaterial({ color: 0xd9c9a8, roughness: 0.5 });
+  for (let i = 0; i < 4; i++) {
     const pivot = new THREE.Group();
-    pivot.add(v);
+    pivot.add(box(0.62, 0.012, 0.07, louvreMat, 0, -0.035, 0.37, { cast: false }));
     pivot.rotation.y = (i * Math.PI) / 2;
     cassette.add(pivot);
   }
-  cassette.position.set(1.4, H - 0.03, 2.55);
+  cassette.position.set(X * 0.33, H - 0.03, Z * 0.68);
   ceilG.add(cassette);
-  g.add(ceilG);
 
   const lamps = [];
   const ledMat = new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff4e0, emissiveIntensity: 2.2 });
-  [[0.8, 1.2], [3.0, 2.9]].forEach(([lx, lz]) => {
-    ceilG.add(cyl(0.16, 0.16, 0.04, 40, M.whitePlastic, lx, H - 0.02, lz, { cast: false }));
-    ceilG.add(cyl(0.135, 0.135, 0.005, 40, ledMat, lx, H - 0.042, lz, { cast: false }));
-    lamps.push(new THREE.Vector3(lx, H - 0.06, lz));
+  [[0.2, 0.28], [0.72, 0.75]].forEach(([fx, fz]) => {
+    ceilG.add(cyl(0.16, 0.16, 0.04, 32, M.whitePlastic, X * fx, H - 0.02, Z * fz, { cast: false }));
+    ceilG.add(cyl(0.135, 0.135, 0.005, 32, ledMat, X * fx, H - 0.042, Z * fz, { cast: false }));
+    lamps.push(new THREE.Vector3(X * fx, H - 0.06, Z * fz));
   });
-  // hanging bulb
-  ceilG.add(cyl(0.004, 0.004, 0.14, 6, M.whitePlastic, 2.25, H - 0.07, 1.55, { cast: false }));
-  ceilG.add(mesh(new THREE.SphereGeometry(0.045, 20, 14),
-    new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff1d6, emissiveIntensity: 3 }), 2.25, H - 0.18, 1.55, { cast: false }));
-  lamps.push(new THREE.Vector3(2.25, H - 0.2, 1.55));
-  // smoke detector + linear diffusers
-  ceilG.add(cyl(0.06, 0.07, 0.04, 24, new THREE.MeshStandardMaterial({ color: 0xe8e0cc, roughness: 0.6 }), 2.85, H - 0.02, 0.95, { cast: false }));
+  const bx = X * 0.52, bz = Z * 0.36;
+  ceilG.add(cyl(0.004, 0.004, 0.14, 6, M.whitePlastic, bx, H - 0.07, bz, { cast: false }));
+  ceilG.add(mesh(new THREE.SphereGeometry(0.045, 16, 12),
+    new THREE.MeshStandardMaterial({ color: 0xffffff, emissive: 0xfff1d6, emissiveIntensity: 3 }), bx, H - 0.18, bz, { cast: false }));
+  lamps.push(new THREE.Vector3(bx, H - 0.2, bz));
+  ceilG.add(cyl(0.06, 0.07, 0.04, 20, new THREE.MeshStandardMaterial({ color: 0xe8e0cc, roughness: 0.6 }), X * 0.68, H - 0.02, Z * 0.2, { cast: false }));
   const diffMat = new THREE.MeshStandardMaterial({ map: T.grille(8, '#5a4a44', '#e7e2dc'), roughness: 0.7 });
-  [[1.6, 0.75, 1.2, 0.3], [3.2, 3.2, 0.3, 1.0]].forEach(([dx, dz, w, d]) => {
+  [[X * 0.38, 0.75, 1.2, 0.3], [X * 0.8, Z * 0.62, 0.3, 1.0]].forEach(([dx, dz, w, d]) => {
     const p = mesh(new THREE.PlaneGeometry(w, d), diffMat, dx, H - 0.002, dz, { cast: false });
     p.rotation.x = Math.PI / 2;
     ceilG.add(p);
   });
 
   // -------- furniture --------
-  // window workbench with the lab monitor, PC tower and drone parts
-  bench(g, 1.75, 0.34, 3.1, 0.55, 0.9);
-  deskMonitor(g, 0.9, 0.9, 0.3, Math.PI);
-  g.add(box(0.2, 0.45, 0.42, M.blackPlastic, 0.55, 0.225, 0.36));
-  g.add(box(0.22, 0.03, 0.3, M.blackPlastic, 1.6, 0.91, 0.3)); // laptop base
-  const lid = box(0.22, 0.01, 0.3, M.blackPlastic, 1.6, 1.05, 0.16);
+  // Window desk: monitor + PC tower at the pier end, laptop mid-way, router at the far end.
+  const { deskX0: x0, deskX1: x1 } = L;
+  bench(g, (x0 + x1) / 2, 0.34, x1 - x0, 0.55, 0.9);
+  deskMonitor(g, x0 + 0.45, 0.9, 0.3, Math.PI);
+  g.add(box(0.2, 0.45, 0.42, M.blackPlastic, x0 + 0.15, 0.225, 0.36));
+  g.add(box(0.22, 0.03, 0.3, M.blackPlastic, x0 + 1.15, 0.91, 0.3, { cast: false }));
+  const lid = box(0.22, 0.01, 0.3, M.blackPlastic, x0 + 1.15, 1.05, 0.16);
   lid.rotation.x = -1.2;
   g.add(lid);
-  g.add(box(0.12, 0.22, 0.12, M.whitePlastic, 2.9, 1.01, 0.25)); // router
-  g.add(box(0.5, 0.06, 0.3, new THREE.MeshStandardMaterial({ color: 0x2c3a52, roughness: 0.6 }), 2.2, 0.19, 0.36)); // parts on shelf
+  g.add(box(0.12, 0.22, 0.12, M.whitePlastic, x1 - 0.2, 1.01, 0.25));
+  g.add(box(0.5, 0.06, 0.3, new THREE.MeshStandardMaterial({ color: 0x2c3a52, roughness: 0.6 }), x0 + 1.6, 0.19, 0.36, { cast: false }));
+  // two mesh chairs tucked in at the window desk
+  officeChair(g, x0 + 1.05, 0.85, 0);
+  officeChair(g, x0 + 2.0, 0.85, 0);
+  // corner shelf with the blue parts box, between the desk and the monitor bench
+  g.add(box(0.5, 0.02, 0.45, M.steel, X - 0.45, 0.6, 0.35));
+  g.add(box(0.36, 0.12, 0.26, new THREE.MeshStandardMaterial({ color: 0x2f6fd6, roughness: 0.5 }), X - 0.45, 0.67, 0.35));
 
-  // east bench with patient monitors and soldering station
-  bench(g, 3.66, 2.05, 2.3, 0.6, 0.78, Math.PI / 2);
-  patientMonitor(g, 3.72, 0.78, 1.25, -Math.PI / 2, 1, screens);
-  patientMonitor(g, 3.72, 0.78, 1.78, -Math.PI / 2, 2, screens);
-  g.add(box(0.14, 0.08, 0.1, new THREE.MeshStandardMaterial({ color: 0xd8672c, roughness: 0.5 }), 3.6, 0.82, 2.5)); // multimeter
-  g.add(cyl(0.05, 0.06, 0.03, 20, M.blackPlastic, 3.6, 0.795, 2.8));
-  const iron = cyl(0.006, 0.006, 0.26, 8, M.chrome, 3.6, 0.93, 2.8);
+  // Monitor bench along the east wall, patient monitors at the window end.
+  const { benchZ0: z0, benchZ1: z1 } = L;
+  bench(g, X - 0.34, (z0 + z1) / 2, z1 - z0, 0.6, 0.78, Math.PI / 2);
+  patientMonitor(g, X - 0.28, 0.78, z0 + 0.35, -Math.PI / 2, 1, screens);
+  patientMonitor(g, X - 0.28, 0.78, z0 + 0.85, -Math.PI / 2, 2, screens);
+  g.add(box(0.14, 0.08, 0.1, new THREE.MeshStandardMaterial({ color: 0xd8672c, roughness: 0.5 }), X - 0.4, 0.82, z0 + 1.5, { cast: false }));
+  g.add(cyl(0.05, 0.06, 0.03, 16, M.blackPlastic, X - 0.4, 0.795, z0 + 1.85, { cast: false }));
+  const iron = cyl(0.006, 0.006, 0.26, 8, M.chrome, X - 0.4, 0.93, z0 + 1.85, { cast: false });
   iron.rotation.z = 0.5;
   g.add(iron);
+  // sled chair pulled up to the bench by the monitors, facing the wall
+  sledChair(g, X - 0.85, z0 + 0.3, -Math.PI / 2);
+  // cardboard box of parts past the end of the bench
+  g.add(box(0.45, 0.32, 0.35, new THREE.MeshStandardMaterial({ color: 0xa57b4f, roughness: 0.9 }), X - 0.4, 0.16, z1 + 0.35));
 
-  // central meeting table and chairs
-  // Chairs tucked in, leaving the walkways people actually use: along the window bench,
-  // down the monitor bench, past the orange panels and out to the doorway.
-  const TX = 2.1, TZ = 2.25;
+  // Octagon table with chairs on the sides people actually sit (west and south), placed
+  // just clear of the tabletop and facing its centre.
+  const { x: TX, z: TZ } = L.table;
   octagonTable(g, TX, TZ);
-  const seat = (a, d) => [TX + Math.cos(a) * d, TZ + Math.sin(a) * d, -a - Math.PI / 2];
-  [[-2.5, 0.9], [-1.0, 0.9], [0.85, 0.9], [2.4, 0.9]].forEach(([a, d]) => officeChair(g, ...seat(a, d)));
-  [[1.65, 0.92], [3.1, 0.92]].forEach(([a, d]) => sledChair(g, ...seat(a, d)));
-  // backpack on the west sled chair
-  const [bpx, bpz] = seat(3.1, 1.02);
+  const facing = (a, d) => [TX + Math.cos(a) * d, TZ + Math.sin(a) * d, Math.PI / 2 - a];
+  [Math.PI, 2.35, Math.PI / 2].forEach((a) => officeChair(g, ...facing(a, 1.1)));
+  sledChair(g, ...facing(0.9, 1.08));
+  const [bpx, bpz] = facing(0.9, 1.26);
   g.add(rbox(0.3, 0.42, 0.18, 0.06, new THREE.MeshStandardMaterial({ color: 0x241f22, roughness: 0.9 }), bpx, 0.72, bpz));
-  // cardboard box of parts by the east bench (seen in the photos)
-  g.add(box(0.45, 0.32, 0.35, new THREE.MeshStandardMaterial({ color: 0xa57b4f, roughness: 0.9 }), 3.4, 0.16, 3.35));
 
-  // Cutaway: each shell piece hides when the camera is on its outer side.
-  // (point on the surface, outward normal)
+  g.add(north, east, south, west, ceilG);
+
+  // Collapse every static group into one mesh per material: ~500 draw calls become a few
+  // dozen, the single biggest win for frame rate on phones.
+  scene.updateMatrixWorld(true);
+  const boundaries = new Set([north, east, south, west, ceilG, outside]);
+  [g, north, east, south, west, ceilG, outside].forEach((c) => mergeStatic(c, boundaries));
+
+  setZones(config.size);
+
   const shells = [
     { group: north, p: new THREE.Vector3(X / 2, 0, 0), n: new THREE.Vector3(0, 0, -1) },
     { group: east, p: new THREE.Vector3(X, 0, Z / 2), n: new THREE.Vector3(1, 0, 0) },
@@ -401,20 +405,60 @@ export function buildRoom(scene, config) {
     { group: ceilG, p: new THREE.Vector3(X / 2, H, Z / 2), n: new THREE.Vector3(0, 1, 0) },
   ];
 
-  return { group: g, lamps, screens, shells, outside };
+  return { group: g, lamps, screens, shells, outside, panorama: panoMat };
+}
+
+// Merge every plain mesh under `root` (not crossing into `boundaries`) into one mesh per
+// material + shadow flags, baked into root's space.
+function mergeStatic(root, boundaries) {
+  const inv = new THREE.Matrix4().copy(root.matrixWorld).invert();
+  const buckets = new Map();
+  const victims = [];
+  const walk = (o) => {
+    for (const c of o.children) {
+      if (c !== root && boundaries.has(c)) continue;
+      if (c.isMesh && !c.isSkinnedMesh && !c.isInstancedMesh) {
+        const key = `${c.material.uuid}|${c.castShadow}|${c.receiveShadow}`;
+        const geo = c.geometry.index ? c.geometry.clone() : null;
+        if (geo) {
+          for (const name of Object.keys(geo.attributes)) if (!['position', 'normal', 'uv'].includes(name)) geo.deleteAttribute(name);
+          geo.applyMatrix4(new THREE.Matrix4().multiplyMatrices(inv, c.matrixWorld));
+          if (!buckets.has(key)) buckets.set(key, { mat: c.material, cast: c.castShadow, receive: c.receiveShadow, geos: [] });
+          buckets.get(key).geos.push(geo);
+          victims.push(c);
+        }
+      }
+      walk(c);
+    }
+  };
+  walk(root);
+  for (const v of victims) v.parent.remove(v);
+  for (const b of buckets.values()) {
+    const merged = mergeGeometries(b.geos, false);
+    if (!merged) continue;
+    const m = new THREE.Mesh(merged, b.mat);
+    m.castShadow = b.cast;
+    m.receiveShadow = b.receive;
+    root.add(m);
+  }
 }
 
 // ---------------------------------------------------------------------------
-// Named zones, used to say *where* someone is in plain words ("by the window bench").
+// Named zones, used to say *where* someone is in plain words ("near the window desk").
 // ---------------------------------------------------------------------------
-export const ZONES = [
-  { name: 'window bench', x: 1.75, z: 0.9, r: 1.3 },
-  { name: 'meeting table', x: 2.1, z: 2.25, r: 1.2 },
-  { name: 'monitor bench', x: 3.3, z: 1.6, r: 0.9 },
-  { name: 'doorway', x: 0.5, z: 3.2, r: 0.8 },
-  { name: 'orange panels', x: 2.0, z: 3.3, r: 1.0 },
-  { name: 'partition', x: 0.5, z: 1.6, r: 0.8 },
-];
+let ZONES = [];
+function setZones(size) {
+  const { x: X, z: Z } = size;
+  const L = LAYOUT(size);
+  ZONES = [
+    { name: 'window desk', x: (L.deskX0 + L.deskX1) / 2, z: 1.0, r: 1.3 },
+    { name: 'meeting table', x: L.table.x, z: L.table.z, r: 1.3 },
+    { name: 'monitor bench', x: X - 0.9, z: (L.benchZ0 + L.benchZ1) / 2, r: 1.0 },
+    { name: 'doorway', x: 0.5, z: (L.doorZ0 + L.doorZ1) / 2, r: 0.8 },
+    { name: 'orange panels', x: X / 2, z: Z - 0.5, r: 1.0 },
+    { name: 'partition', x: 0.5, z: Z * 0.35, r: 0.8 },
+  ];
+}
 
 export function zoneAt(x, z) {
   let best = ZONES[0], bestD = Infinity;
@@ -422,5 +466,5 @@ export function zoneAt(x, z) {
     const d = Math.hypot(x - zn.x, z - zn.z) / zn.r;
     if (d < bestD) { bestD = d; best = zn; }
   }
-  return best.name;
+  return best ? best.name : 'room';
 }

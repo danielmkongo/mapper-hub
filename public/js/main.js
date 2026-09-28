@@ -44,6 +44,10 @@ async function main() {
   renderer.setSize(innerWidth, innerHeight);
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  // Shadow maps are redrawn on a timer (see frame()), not every frame: the room is static
+  // and people move slowly, so 10 refreshes a second look identical at a fraction of the cost.
+  renderer.shadowMap.autoUpdate = false;
+  renderer.shadowMap.needsUpdate = true;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
   stage.appendChild(renderer.domElement);
@@ -315,9 +319,17 @@ async function main() {
   // ---- frame loop ----
   const clock = new THREE.Clock();
   const tmp = new THREE.Vector3();
+  // 60fps cap: high-refresh laptop screens would otherwise run the full-quality pipeline
+  // 120-165 times a second for no visible gain - that was the stutter on desktop.
+  const FRAME_MS = 1000 / 60;
+  let lastFrame = 0, lastShadow = 0;
   function frame() {
-    const dt = Math.min(clock.getDelta(), 0.1);
+    requestAnimationFrame(frame);
     const now = performance.now();
+    if (now - lastFrame < FRAME_MS - 1.5) return;
+    lastFrame = now;
+    const dt = Math.min(clock.getDelta(), 0.1);
+    if (now - lastShadow > 100) { renderer.shadowMap.needsUpdate = true; lastShadow = now; }
 
     for (const p of people.values()) p.tick(dt, now);
     room.screens.forEach((t) => t.update(now));
@@ -356,7 +368,6 @@ async function main() {
     if (prefs.hq) composer.render(dt);
     else renderer.render(scene, camera);
     labels.render(scene, camera);
-    requestAnimationFrame(frame);
   }
   frame();
 

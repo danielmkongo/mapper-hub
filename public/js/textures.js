@@ -205,10 +205,10 @@ export function whiteboard() {
     const r = rng(3);
     const colors = ['#1b6e3a', '#1f3f9a', '#c7372f'];
     g.font = '28px "Segoe Print", "Comic Sans MS", cursive';
-    const titles = [['To Be Done this Mid Month', 60, 58], ['Items Addressing on Meeting', 540, 58]];
+    const titles = [['Evacuation plan', 60, 58], ['Drill checklist', 540, 58]];
     g.fillStyle = '#1f3f9a';
     titles.forEach(([t, x, y]) => g.fillText(t, x, y));
-    const words = ['MajiLink', 'Mi-Tech', 'Payment Gateway', 'CarbonLink', 'ATC', 'Design', 'Review', 'Order', 'Testing', 'Video'];
+    const words = ['Muster point', 'Floor warden', 'Stairwell A', 'Headcount', 'Exits clear', 'Alarm test', 'First aid', 'Radios', 'Roll call', 'Report'];
     for (let col = 0; col < 2; col++) {
       for (let i = 0; i < 8; i++) {
         g.fillStyle = colors[Math.floor(r() * 3)];
@@ -222,7 +222,7 @@ export function whiteboard() {
       }
     }
     g.fillStyle = '#c7372f';
-    g.fillText('Name = Task Lead', 60, 520);
+    g.fillText('Drill: Friday 10:00', 60, 520);
     return tex(c, { repeat: [1, 1] });
   });
 }

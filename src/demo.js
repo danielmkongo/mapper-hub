@@ -9,12 +9,16 @@ const gauss = () => {
   return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
 };
 
-// Walkways that keep clear of the furniture (see room.js): along the window bench, down
-// the monitor bench, past the orange panels and back up the doorway side.
-const LOOP = [
-  [1.4, 1.1], [2.3, 0.98], [3.1, 1.02], [3.1, 2.3], [3.0, 3.42],
-  [2.1, 3.45], [1.0, 3.4], [0.7, 2.5], [0.8, 1.7],
-];
+// Walkways that keep clear of the furniture, derived from the same layout rules as the
+// twin (public/js/room.js LAYOUT): along the window desk behind its chairs, down between the
+// table and the monitor bench, past the orange panels and back up the doorway side.
+function loopFor({ x: X, z: Z }) {
+  const tz = Z * 0.56;
+  return [
+    [0.45, 1.4], [X - 1.1, 1.4], [X - 1.1, tz], [X - 1.1, Z - 0.65],
+    [X * 0.47, Z - 0.6], [0.45, Z - 0.65], [0.42, tz],
+  ];
+}
 
 function makeWalker({ id, path, speed, pauses, fallAt }) {
   let seg = 0, t = 0, x = path[0][0], z = path[0][1];
@@ -55,11 +59,11 @@ function makeWalker({ id, path, speed, pauses, fallAt }) {
 
 export function startDemo(config, ingest) {
   const walkers = [
-    makeWalker({ id: 5, path: LOOP, speed: 0.75, pauses: [2, 5], fallAt: { every: 75, duration: 16 } }),
+    makeWalker({ id: 5, path: loopFor(config.size), speed: 0.75, pauses: [2, 5], fallAt: { every: 75, duration: 16 } }),
     // working at the window bench monitor, shifting between it and the laptop
     makeWalker({
       id: 7,
-      path: [[0.85, 0.82], [1.55, 0.82]],
+      path: [[0.8, 1.0], [1.15, 1.0]],
       speed: 0.3,
       pauses: [0, 1],
     }),

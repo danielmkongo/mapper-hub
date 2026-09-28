@@ -125,6 +125,6 @@ Useful on the server:
 - **Connection screen:** shown whenever the hub can't be reached.
 - **While monitoring:** it keeps the screen on.
 
-Everything else (twin, people, alerts) is this web app, so the phone and the control room always match. Build it in Visual Studio 2022 with the .NET MAUI workload installed. The app id is `com.vortan.mapper`, so v2 installs alongside the old app.
+Everything else (twin, people, alerts) is this web app, so the phone and the control room always match. Build it in Visual Studio 2022 with the .NET MAUI workload installed. The app id is `com.mapper.live`.
 
 Without the native app, a phone can also use the console directly: open the hub URL in Chrome and choose "Add to Home screen".
