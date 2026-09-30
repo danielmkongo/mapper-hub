@@ -9,6 +9,7 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { CSS2DRenderer, CSS2DObject } from 'three/addons/renderers/CSS2DRenderer.js';
 import { buildRoom, zoneAt } from './room.js';
 import { loadAvatar, Person, STATUS_COLORS, escapeHtml } from './people.js';
+import { createAlarm } from './alarm.js';
 
 const $ = (id) => document.getElementById(id);
 // The hub serves this page, at the site root locally or under a path behind nginx
@@ -20,7 +21,7 @@ const HUB = new URL('.', location.href).href.replace(/\/$/, '');
 // ---------------------------------------------------------------------------
 const prefs = (() => {
   const phone = matchMedia('(pointer: coarse)').matches && Math.min(innerWidth, innerHeight) < 820;
-  const defaults = { hq: !phone, trails: true, ranges: false };
+  const defaults = { hq: !phone, trails: true, ranges: false, sound: true };
   let saved = {};
   try { saved = JSON.parse(localStorage.getItem('mapper.prefs') || '{}'); } catch { /* private mode */ }
   const p = { ...defaults, ...saved };
@@ -251,7 +252,34 @@ async function main() {
   });
   $('panelGrip').addEventListener('click', () => $('panel').classList.toggle('collapsed'));
 
+  // ---- "Man down" alarm sound ----
+  // Sounds while anyone is down; Silence acknowledges the people down now (someone else going
+  // down sounds again), the speaker button / M mutes it on this device.
+  const soundBtn = $('soundBtn');
+  function renderSound(st) {
+    soundBtn.setAttribute('aria-pressed', String(!st.muted));
+    soundBtn.dataset.alarm = st.locked ? 'locked' : st.sounding ? 'sounding' : '';
+    soundBtn.title = st.locked ? 'Someone is down - tap anywhere to enable the alarm sound'
+      : st.muted ? 'Alarm sound off (M to turn on)' : 'Alarm sound on (M to mute)';
+    $('alertSilence').hidden = !(st.sounding || st.locked);
+  }
+  const alarm = createAlarm({ muted: prefs.sound === false, onChange: renderSound });
+  const toggleSound = () => {
+    alarm.setMuted(!alarm.muted);
+    prefs.sound = !alarm.muted;
+    savePrefs();
+  };
+  soundBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleSound(); });
+  $('alertSilence').addEventListener('click', (e) => { e.stopPropagation(); alarm.silence(); });
+  addEventListener('keydown', (e) => {
+    if ((e.key === 'm' || e.key === 'M') && !e.ctrlKey && !e.metaKey && !e.altKey) toggleSound();
+  });
+  renderSound(alarm.state());
+
   function renderAlert() {
+    alarm.update(latest.people
+      .filter((d) => !d.offline && d.alerts.some((a) => a.code === 'man-down'))
+      .map((d) => d.id));
     const worst = latest.people
       .filter((d) => !d.offline && d.alerts.length)
       .sort((a, b) => rank(b) - rank(a))[0];

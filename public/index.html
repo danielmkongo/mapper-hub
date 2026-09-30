@@ -34,6 +34,10 @@
     <div class="topbar-right">
       <div class="link-pill" id="linkPill" data-state="connecting"><span class="dot"></span><span id="linkText">Connecting</span></div>
       <div class="clock" id="clock">--:--:--</div>
+      <button class="icon-btn" id="soundBtn" aria-label="Alarm sound" aria-pressed="true" title="Alarm sound on (M to mute)">
+        <svg class="snd-on" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/></svg>
+        <svg class="snd-off" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9h4l5-4v14l-5-4H4z"/><path d="M17 9l5 6M22 9l-5 6"/></svg>
+      </button>
       <button class="icon-btn" id="fsBtn" aria-label="Full screen" title="Full screen (F)">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg>
       </button>
@@ -46,6 +50,7 @@
       <div class="alert-title" id="alertTitle"></div>
       <div class="alert-detail" id="alertDetail"></div>
     </div>
+    <button class="alert-btn" id="alertSilence" hidden>Silence</button>
     <button class="alert-btn" id="alertLocate">Locate</button>
   </div>
 
