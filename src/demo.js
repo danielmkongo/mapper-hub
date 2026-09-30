@@ -69,7 +69,7 @@ export function startDemo(config, ingest) {
     }),
   ];
   // Give the demo people names if the config does not.
-  config.people = { '5': { name: 'Daniel', role: 'Engineer' }, '7': { name: 'Amina', role: 'Technician' }, ...config.people };
+  config.people = { '5': { name: 'Jackline', role: 'Engineer' }, '7': { name: 'Amina', role: 'Technician' }, ...config.people };
 
   const TICK = 1000; // same cadence as the real node
   const seq = {};
