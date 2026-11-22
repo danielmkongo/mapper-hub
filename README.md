@@ -1,5 +1,7 @@
 # Mapper hub
 
+> Built by Daniel Mkongo. Mapper tracks people indoors with UWB tags, a LoRa gateway and MQTT, and shows them in a live 3D model of the room.
+
 Live indoor tracking for the Mapper system: it turns the nodes' UWB distances into positions and shows them in a 3D digital twin of the room.
 
 ```
@@ -128,3 +130,11 @@ Useful on the server:
 Everything else (twin, people, alerts) is this web app, so the phone and the control room always match. Build it in Visual Studio 2022 with the .NET MAUI workload installed. The app id is `com.mapper.live`.
 
 Without the native app, a phone can also use the console directly: open the hub URL in Chrome and choose "Add to Home screen".
+
+---
+
+## Author
+
+Built by **Daniel Mkongo** (Daniel Godfrey Mkongo), mechatronics engineer, CEO and co-founder of [Vortan](https://vortan.io), Arusha, Tanzania. Daniel designs embedded hardware, firmware and the cloud platforms that run on top of them.
+
+[GitHub](https://github.com/danielmkongo) · [LinkedIn](https://www.linkedin.com/in/daniel-mkongo-2a5906202)
